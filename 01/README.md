@@ -103,3 +103,25 @@ Vert.x JDBC client 库可以支持任何 JDBC-兼容 数据库的访问。自然
 * 提示：
 
     Vert.x 也提供了处理流行的非关系型数据库 [MongoDB](http://vertx.io/docs/vertx-mongo-client/java/) 和 [Redis](http://vertx.io/docs/vertx-redis-client/java/) 的库。社区里也提供了其他存储系统的集成，例如 Apache Cassandra、OrientDB 和 ElasticSearch。
+
+### 剖析 verticle
+
+我们的 wiki 系统只有 ```io.vertx.guides.wiki.MainVerticle``` 这一个 verticle Java 类。这个类扩展自 ```io.vertx.core.AbstractVerticle```，作为 verticle 的基类，其主要：
+
+1. 提供生命周期 ```start``` 与 ```stop``` 方法来重写
+2. 提供一个名为 ```vertx``` 的受保护（protected）字段：verticle 被部署所在的 Vert.x 环境的引用
+3. 提供一个对某些配置对象的访问器，用来传递一些外部配置给 verticle
+
+为了启动我们的 verticle，只需重写如下的 ```start``` 方法：
+
+```java
+public class MainVerticle extends AbstractVerticle {
+
+  @Override
+  public void start(Future<Void> startFuture) throws Exception {
+    startFuture.complete();
+  }
+}
+```
+
+```start``` 和 ```stop``` 方法有 2 种形式：一种没有参数，另一种带有一个 future 对象引用。无参情况表示 verticle 初始化或者 house-keeping phases 总是执行成功，除非有异常被抛出。带有 future 对象参数时，提供了一种更加细粒度的访问，来表明操作成功与否（译者注：通过 future 对象参数回掉判断）。实际上，一些初始化或者 cleanup 代码可能会要求异步操作，因此通过一个 future 对象给出结果理所当然，这符合异步的惯用表现形式。
