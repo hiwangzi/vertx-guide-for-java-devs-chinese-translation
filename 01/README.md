@@ -49,3 +49,57 @@ Maven 项目的 ```pom.xml``` 做了两件有趣的事：
     mvn io.fabric8:vertx-maven-plugin:1.0.7:setup -DvertxVersion=3.5.0
     git init
     ```
+
+### 添加需要的依赖
+
+首先在 Maven ```pom.xml``` 文件中添加用于 web 处理和渲染的依赖：
+
+```
+<dependency>
+  <groupId>io.vertx</groupId>
+  <artifactId>vertx-web</artifactId>
+</dependency>
+<dependency>
+  <groupId>io.vertx</groupId>
+  <artifactId>vertx-web-templ-freemarker</artifactId>
+</dependency>
+<dependency>
+  <groupId>com.github.rjeschke</groupId>
+  <artifactId>txtmark</artifactId>
+  <version>0.13</version>
+</dependency>
+```
+
+* 提示：
+
+    正如 ```vertx-web-templ-freemarker``` 名字所表示的那样，对于流行的模板引擎，Vert.x web 提供了插件式的支持：Handlebars、Jade、MVEL、Pebble、Thymeleaf 以及 Freemarker。
+
+然后添加 JDBC 数据访问相关的依赖：
+
+```
+<dependency>
+  <groupId>io.vertx</groupId>
+  <artifactId>vertx-jdbc-client</artifactId>
+</dependency>
+<dependency>
+  <groupId>org.hsqldb</groupId>
+  <artifactId>hsqldb</artifactId>
+  <version>2.3.4</version>
+</dependency>
+```
+
+Vert.x JDBC client 库可以支持任何 JDBC-兼容 数据库的访问。自然而然，在我们的项目中，classpath 中需要有 JDBC driver。
+
+[HSQLDB](http://hsqldb.org/) 是一个非常知名的关系型数据（使用 Java 编写）。它广泛作为嵌入型数据库（译者注：嵌入你的程序之中）使用，因为这样可以避免依赖第三方数据库服务器而独立运行。在单元和集成测试时，它也常被用作提供易失性内存存储。
+
+在开始阶段，HSQLDB 作为嵌入型数据库非常适合（我们的项目）。它在本地存储文件，并且 HSQLDB library Jar 提供了 JDBC driver，因此 Vert.x JDBC 的配置将会非常简单。
+
+* 提示：
+
+    Vert.x 也提供了 [MySQL 和 PostgreSQL client](http://vertx.io/docs/vertx-mysql-postgresql-client/java/) 专用的库。
+
+    当然你也可以使用通用的 Vert.x JDBC client 来连接 MySQL 或者 PostgreSQL 数据库，但上面的库使用这两种数据库的网络协议，而不是通过阻塞式的 JDBC API，因此会提供更好的性能
+
+* 提示：
+
+    Vert.x 也提供了处理流行的非关系型数据库 [MongoDB](http://vertx.io/docs/vertx-mongo-client/java/) 和 [Redis](http://vertx.io/docs/vertx-redis-client/java/) 的库。社区里也提供了其他存储系统的集成，例如 Apache Cassandra、OrientDB 和 ElasticSearch。
