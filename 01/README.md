@@ -125,3 +125,29 @@ public class MainVerticle extends AbstractVerticle {
 ```
 
 ```start``` 和 ```stop``` 方法有 2 种形式：一种没有参数，另一种带有一个 future 对象引用。无参情况表示 verticle 初始化或者 house-keeping phases 总是执行成功，除非有异常被抛出。带有 future 对象参数时，提供了一种更加细粒度的访问，来表明操作成功与否（译者注：通过 future 对象参数回掉判断）。实际上，一些初始化或者 cleanup 代码可能会要求异步操作，因此通过一个 future 对象给出结果理所当然，这符合异步的惯用表现形式。
+
+### A word on Vert.x future objects and callbacks
+
+Vert.x future 并不是 JDK 的 future：Vert.x future 可以在非阻塞式程序中被组织并检查结果。他们应被用于异步任务的简单协调，尤其是在部署 verticle 时检查部署成功与否。
+
+Vert.x core API 基于回掉来实现异步事件的通知。富有经验的开发者自然会认为这开启了“回掉地狱”之门，如同下面这个虚构的例子一样，多层的异步嵌套会使得代码难以理解：
+
+```
+foo.a(1, res1 -> {
+  if (res1.succeeded()) {
+    bar.b("abc", 1, res2 -> {
+      if (res.succeeded()) {
+         baz.c(res3 -> {
+           dosomething(res1, res2, res3, res4 -> {
+               // (...)
+           });
+         });
+      }
+    });
+  }
+});
+```
+
+尽管 core API 在设计上就更加偏向（使用） promise 和 future，但回掉允许不同的编程概念（一起）被使用，因此使用回掉实际上也有道理。Vert.x 并不是一个固执己见的项目，许多异步编程模型的实现都可以使用回掉：reactive extensions (via RxJava)、promises 和 futures、fibers (using bytecode instrumentation) 等等。
+
+既然在像 RxJava 这样的概念发挥影响力之前，所有的 Vert.x API 都是“回掉导向型”的，那么本手册在最开始时将**只使用**回掉，以确保读者可以熟悉 Vert.x 中的核心概念。可以说在刚刚开始时，在许多部分的异步代码块之中，使用回掉来画出一条线来更加容易。但一旦在示例代码中回掉开始让代码变得不再易读，我们就将会引入 RxJava 来展示同样的异步代码如果以处理事件流（streams of processed events）来考虑，将可以表示得更加优雅。
