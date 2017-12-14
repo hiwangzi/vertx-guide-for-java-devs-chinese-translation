@@ -151,3 +151,187 @@ foo.a(1, res1 -> {
 尽管 core API 在设计上就更加偏向（使用） promise 和 future，但回掉允许不同的编程概念（一起）被使用，因此使用回掉实际上也有道理。Vert.x 并不是一个固执己见的项目，许多异步编程模型的实现都可以使用回掉：reactive extensions (via RxJava)、promises 和 futures、fibers (using bytecode instrumentation) 等等。
 
 既然在像 RxJava 这样的概念发挥影响力之前，所有的 Vert.x API 都是“回掉导向型”的，那么本手册在最开始时将**只使用**回掉，以确保读者可以熟悉 Vert.x 中的核心概念。可以说在刚刚开始时，在许多部分的异步代码块之中，使用回掉来画出一条线来更加容易。但一旦在示例代码中回掉开始让代码变得不再易读，我们就将会引入 RxJava 来展示同样的异步代码如果以处理事件流（streams of processed events）来考虑，将可以表示得更加优雅。
+
+### Wiki verticle 初始化的步骤
+
+为了让我们的 wiki 运行起来，需要分 2 步进行初始化：
+
+1. 我们需要建立 JDBC 数据库连接，同时确保数据库模式的存在
+2. 同时需要为我们的 web 应用来开启一个 HTTP 服务器
+
+每个步骤都有失败的可能性（例如，HTTP 服务器需要的 TCP 端口可能已经被占用），并且他们不应当并行进行，web 应用的代码首先需要的是数据库可以正常访问。
+
+为了使我们的代码更加简洁，我们为每个步骤定义一个方法，并且采用返回一个 future / promise 对象的形式来告知我们的步骤执行成功与否：
+
+```java
+private Future<Void> prepareDatabase() {
+  Future<Void> future = Future.future();
+  // (...)
+  return future;
+}
+
+private Future<Void> startHttpServer() {
+  Future<Void> future = Future.future();
+  // (...)
+  return future;
+}
+```
+
+由于每个方法返回一个 future 对象，那么 ```start``` 方法的实现就可成为一个 composition：
+
+```java
+@Override
+public void start(Future<Void> startFuture) throws Exception {
+  Future<Void> steps = prepareDatabase().compose(v -> startHttpServer());
+  steps.setHandler(startFuture.completer());
+}
+```
+
+当 ```prepareDatabase``` 的 future 成功完成，然后 ```startHttpServer``` 就被调用，而 ```steps``` future 完成情况取决于 ```startHttpServer``` future 的结果。 如果 ```prepareDatabase``` 遇到了错误，```startHttpServer``` 则不会被调用，在这种情况下，```steps``` future 将以一个失败的状态完成，并携带一个描述错误的异常。
+
+最终 ```steps``` 完成：```setHandler``` 定义了一个 hander，以供完成时调用。在上面的例子中，我们只是想使用 ```steps``` 来完成```setHandler```，并且通过 ```completer``` 方法来获得一个 handler。也可以写成：
+
+```java
+Future<Void> steps = prepareDatabase().compose(v -> startHttpServer());
+steps.setHandler(ar -> {  // 注
+  if (ar.succeeded()) {
+    startFuture.complete();
+  } else {
+    startFuture.fail(ar.cause());
+  }
+});
+```
+
+注：```ar``` 的类型是 ```AsyncResult<Void>```。```AsyncResult<T>``` 被用来传递异步处理的结果，当成功时可能会有一个 ```T``` 类型的结果，当失败时传递一个失败异常。
+
+#### 数据库初始化
+
+Wiki 数据库模式由一张表 ```pages``` 构成，其字段信息如下：
+
+|列名|类型|描述|
+|---|----|----|
+|Id|Integer|主键|
+|Name|Characters|Wiki 页的名字，必须是唯一的|
+|Content|Text|Wiki 页 Markdown 内容|
+
+数据库操作是典型的“查、插、删、改”操作。在最开始，我们简单的将 SQL 语句以静态常量的形式存储在 ```MainVerticle``` 类中。请注意，他们是 HSQLDB 可解析的特定 SQL，有可能在其他关系型数据库中并不支持：
+
+```java
+private static final String SQL_CREATE_PAGES_TABLE = "create table if not exists Pages (Id integer identity primary key, Name varchar(255) unique, Content clob)";
+private static final String SQL_GET_PAGE = "select Id, Content from Pages where Name = ?"; // 注
+private static final String SQL_CREATE_PAGE = "insert into Pages values (NULL, ?, ?)";
+private static final String SQL_SAVE_PAGE = "update Pages set Content = ? where Id = ?";
+private static final String SQL_ALL_PAGES = "select Name from Pages";
+private static final String SQL_DELETE_PAGE = "delete from Pages where Id = ?";
+```
+
+注：语句中的 ```?``` 是在执行时传递数据的占位符，因此 Vert.x JDBC client 可以防止 SQL 注入。
+
+我们的应用 verticle 需要保持一个 ```JDBCClient``` 对象（来自 ```io.vertx.ext.jdbc``` 包）的引用来提供数据库的连接。我们在 ```MainVerticle``` 中声明了 ```dbClient```，并且创建了一个来自 ```org.slf4j``` 包的通用日志记录器。
+
+```java
+private JDBCClient dbClient;
+
+private static final Logger LOGGER = LoggerFactory.getLogger(MainVerticle.class);
+```
+
+下面是一个 ```prepareDatabase``` 方法的完整实现。它尝试获取一个 JDBC client 连接，然后执行 SQL，在 ```Pages``` 表不存在的情况下来创建表：
+
+```java
+private Future<Void> prepareDatabase() {
+  Future<Void> future = Future.future();
+
+  dbClient = JDBCClient.createShared(vertx, new JsonObject()  // 注 1
+    .put("url", "jdbc:hsqldb:file:db/wiki")   // 注 2
+    .put("driver_class", "org.hsqldb.jdbcDriver")   // 注 3
+    .put("max_pool_size", 30));   // 注 4
+
+  dbClient.getConnection(ar -> {    // 注 5
+    if (ar.failed()) {
+      LOGGER.error("Could not open a database connection", ar.cause());
+      future.fail(ar.cause());    // 注 6
+    } else {
+      SQLConnection connection = ar.result();   // 注 7
+      connection.execute(SQL_CREATE_PAGES_TABLE, create -> {
+        connection.close();   // 注 8
+        if (create.failed()) {
+          LOGGER.error("Database preparation error", create.cause());
+          future.fail(create.cause());
+        } else {
+          future.complete();  // 注 9
+        }
+      });
+    }
+  });
+
+  return future;
+}
+```
+
+注：
+
+1. ```createShared``` 创建一个共享的连接，其在 ```vertx``` 实例已知的 verticle 之间共享，通常来说这是一件好事。
+2. 通过传递一个 JSON 对象来创建 JDBC client 连接。其中 ```url`` 指的是 JDBC url。
+3. 使用 ```url```、```driver_class``` 等等来配置 JDBC driver 并且指出 JDBC driver 类。
+4. ```max_pool_size``` 指的是并发连接数。这里设为 30 是武断决定，任意选择了一个数字。
+5) 获取一个连接是异步操作，其提供给我们一个 ```AsyncResult<SQLConnection>```。它在使用之前必须检测是否可以建立连接（```AsyncResult``` 实际上是 ```Future``` 的超类接口）。
+6. 如果不能得到 SQL 连接，future 就以失败为结果完成，并返回提供了异常（通过 ```cause``` 方法得到）的 ```AsyncResult```。
+7. ```SQLConnection``` 是成功的 ```AsyncResult``` 的结果。我们可以使用它来执行 SQL 查询。
+8. 在我们检查 SQL 查询执行成功与否之前，我们必须先通过调用 ```close``` 方法来释放连接，否则 JDBC client 连接池最终将干涸（无连接可用）。
+9. 我们成功完成 future 操作。
+
+> 提示：
+>
+> Vert.x 项目支持的 SQL 数据库模块目前主要关注提供对数据库的异步访问，除了传递 SQL 查询外，并没有提供其余更多（例如，对象-关系映射）。然而，完全可以使用[来自社区的更先进的模块](https://github.com/vert-x3/vertx-awesome)，我们尤其推荐了解一下像 [jOOq generator for Vert.x](https://github.com/jklingsporn/vertx-jooq) 或 [POJO mapper](https://github.com/BraintagsGmbH/vertx-pojo-mapper) 这样的项目。
+
+#### 关于日志
+
+上面引入了一个日志记录器，这里选择使用 [SFL4J library](https://www.slf4j.org/)。关于日志记录，Vert.x 也不是固执己见的：你可以选择任何流行的 Java 日志库。这里之所以推荐 SLF4J 是因为在 Java 生态之中，它是非常流行的日志抽象和统一库。
+
+我们同样推荐使用 [Logback](https://logback.qos.ch/) 来作为日志记录器的实现。可以通过添加两个依赖，来同时集成 SLF4J 和 Logback，或者仅仅添加 ```logback-classic```，它将同时添加两个库的依赖（顺便一提，他们来自同一个作者）。
+
+```
+<dependency>
+  <groupId>ch.qos.logback</groupId>
+  <artifactId>logback-classic</artifactId>
+  <version>1.2.3</version>
+</dependency>
+```
+
+默认情况下，SLF4J 将会输出很多来自 Vert.x、Netty、C3PO 以及 wiki 应用的日志事件到控制台。我们可以通过添加一个 ```src/main/resources/logback.xml``` 配置文件来减少冗杂（查看 https://logback.qos.ch/ 这里获得更多信息）。
+
+```xml
+<configuration>
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="com.mchange.v2" level="warn"/>
+  <logger name="io.netty" level="warn"/>
+  <logger name="io.vertx" level="info"/>
+  <logger name="io.vertx.guides.wiki" level="debug"/>
+
+  <root level="debug">
+    <appender-ref ref="STDOUT"/>
+  </root>
+
+</configuration>
+```
+
+最后但同样重要，HSQLDB 在内嵌时，与日志记录器集成得并不太好。默认情况下，它将尝试重新配置日志系统，所以我们在执行应用时，需要通过加 ```Dhsqldb.reconfig_logging=false``` 属性给 Java 虚拟机来禁用它这一点。
+
+#### HTTP 服务器初始化
+
+HTTP 服务器通过使用 ```vertx-web``` 项目，来比较容易得为传入的 HTTP 请求来定义分发路由。实际上，Vert.x core API 允许开启 HTTP 服务器并监听传入的连接，但它没有提供任何机制来根据请求 URL 不同来提供不同的 handler。根据 URL、HTTP 方法等等来分发请求到不同的处理 handler，这便是 router 的作用。
+
+初始化过程由设置请求路由，开启 HTTP 服务器组成：
+
+1. ```vertx``` 上下文对象提供了方法来创建 HTTP 服务器、客户端，TCP/UDP 服务器、客户端等等。
+2. ```Router``` 类来自 ```vertx-web```: ```io.vertx.ext.web.Router```。
+3. 路由拥有自己的 handler，它们可以根据 URL 或 HTTP 方法来被定义。对于较短的 handler，可以采用 Java lambda 表达式的形式，但对于更复杂的 handler 来说，引用一个私有方法则更佳。注意 URL 可以带有参数，例如 ```/wiki/:page``` 将匹配类似 ```/wiki/Hello``` 这样的请求，这样 ```page``` 参数将被设置为 ```Hello```。
+4. 这将会使所有 HTTP POST 请求通过 ```io.vertx.ext.web.handler.BodyHandler``` 这个 handler。它将自动的解码来自 HTTP 请求（例如，表单提交）（它们可以被作为 Vert.x buffer 对象来使用）的 body 体。
+5. router 对象可以被用来作为 HTTP 服务器的 handler，然后分发请求给之前定义的其他 handler。
+6. 开启一个 HTTP 服务器是异步操作，因此需要 ```AsyncResult<HttpServer>``` 来检查操作是否成功。```8080``` 参数具体指定了服务器的 TCP 端口。
