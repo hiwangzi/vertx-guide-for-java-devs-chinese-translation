@@ -1,8 +1,8 @@
 ## 使用 Vert.x 实现一个最小可实施的 wiki 系统
 
-* 提示：
-
-    相关的源代码可以在本手册（注：英文原版）的仓库 [step-1](https://github.com/vert-x3/vertx-guide-for-java-devs/tree/master/step-1) 目录下找到。
+> 提示：
+>
+> 相关的源代码可以在本手册（注：英文原版）的仓库 [step-1](https://github.com/vert-x3/vertx-guide-for-java-devs/tree/master/step-1) 目录下找到。
 
 我们将从第一个迭代版本开始，以尽可能简单的代码，使用 Vert.x 实现一个 wiki 系统。在之后的迭代版本，代码将会更加优雅，同时引入适当的测试，我们将可以看到使用 Vert.x 快速构建原型兼具简单性与实际性。
 
@@ -39,16 +39,16 @@ Maven 项目的 ```pom.xml``` 做了两件有趣的事：
 
 在代码变更之后，你可以选择使用 ```redeploy.sh``` 和 ```redeploy.bat``` 脚本来自动编译和重新部署（项目）。但要注意，使用这些脚本需要确保脚本中的 ```VERTICLE``` 变量与 main verticle 中实际用到的一样。
 
-* 注意：
-
-    另外，Fabric8 项目下有一个 [Vert.x Maven plugin](https://vmp.fabric8.io/)。它用于初始化、构建、打包并运行一个 Vert.x 项目。
-    生成一个与克隆自 Git starter 仓库相似的项目：
-    ```
-    mkdir vertx-wiki
-    cd vertx-wiki
-    mvn io.fabric8:vertx-maven-plugin:1.0.7:setup -DvertxVersion=3.5.0
-    git init
-    ```
+> 注意：
+>
+> 另外，Fabric8 项目下有一个 [Vert.x Maven plugin](https://vmp.fabric8.io/)。它用于初始化、构建、打包并运行一个 Vert.x 项目。
+> 生成一个与克隆自 Git starter 仓库相似的项目：
+> ```
+> mkdir vertx-wiki
+> cd vertx-wiki
+> mvn io.fabric8:vertx-maven-plugin:1.0.7:setup -DvertxVersion=3.5.0
+> git init
+> ```
 
 ### 添加需要的依赖
 
@@ -70,9 +70,9 @@ Maven 项目的 ```pom.xml``` 做了两件有趣的事：
 </dependency>
 ```
 
-* 提示：
-
-    正如 ```vertx-web-templ-freemarker``` 名字所表示的那样，对于流行的模板引擎，Vert.x web 提供了插件式的支持：Handlebars、Jade、MVEL、Pebble、Thymeleaf 以及 Freemarker。
+> 提示：
+>
+> 正如 ```vertx-web-templ-freemarker``` 名字所表示的那样，对于流行的模板引擎，Vert.x web 提供了插件式的支持：Handlebars、Jade、MVEL、Pebble、Thymeleaf 以及 Freemarker。
 
 然后添加 JDBC 数据访问相关的依赖：
 
@@ -94,15 +94,15 @@ Vert.x JDBC client 库可以支持任何 JDBC-兼容 数据库的访问。自然
 
 在开始阶段，HSQLDB 作为嵌入型数据库非常适合（我们的项目）。它在本地存储文件，并且 HSQLDB library Jar 提供了 JDBC driver，因此 Vert.x JDBC 的配置将会非常简单。
 
-* 提示：
+> 提示：
+>
+> Vert.x 也提供了 [MySQL 和 PostgreSQL client](http://vertx.io/docs/vertx-mysql-postgresql-client/java/) 专用的库。
+>
+> 当然你也可以使用通用的 Vert.x JDBC client 来连接 MySQL 或者 PostgreSQL 数据库，但上面的库使用这两种数据库的网络协议，而不是通过阻塞式的 JDBC API，因此会提供更好的性能
 
-    Vert.x 也提供了 [MySQL 和 PostgreSQL client](http://vertx.io/docs/vertx-mysql-postgresql-client/java/) 专用的库。
-
-    当然你也可以使用通用的 Vert.x JDBC client 来连接 MySQL 或者 PostgreSQL 数据库，但上面的库使用这两种数据库的网络协议，而不是通过阻塞式的 JDBC API，因此会提供更好的性能
-
-* 提示：
-
-    Vert.x 也提供了处理流行的非关系型数据库 [MongoDB](http://vertx.io/docs/vertx-mongo-client/java/) 和 [Redis](http://vertx.io/docs/vertx-redis-client/java/) 的库。社区里也提供了其他存储系统的集成，例如 Apache Cassandra、OrientDB 和 ElasticSearch。
+> 提示：
+>
+> Vert.x 也提供了处理流行的非关系型数据库 [MongoDB](http://vertx.io/docs/vertx-mongo-client/java/) 和 [Redis](http://vertx.io/docs/vertx-redis-client/java/) 的库。社区里也提供了其他存储系统的集成，例如 Apache Cassandra、OrientDB 和 ElasticSearch。
 
 ### 剖析 verticle
 
@@ -328,6 +328,37 @@ private Future<Void> prepareDatabase() {
 HTTP 服务器通过使用 ```vertx-web``` 项目，来比较容易得为传入的 HTTP 请求来定义分发路由。实际上，Vert.x core API 允许开启 HTTP 服务器并监听传入的连接，但它没有提供任何机制来根据请求 URL 不同来提供不同的 handler。根据 URL、HTTP 方法等等来分发请求到不同的处理 handler，这便是 router 的作用。
 
 初始化过程由设置请求路由，开启 HTTP 服务器组成：
+
+```java
+private Future<Void> startHttpServer() {
+  Future<Void> future = Future.future();
+  HttpServer server = vertx.createHttpServer();   // 注 1
+
+  Router router = Router.router(vertx);   // 注 2
+  router.get("/").handler(this::indexHandler);
+  router.get("/wiki/:page").handler(this::pageRenderingHandler); // 注 3
+  router.post().handler(BodyHandler.create());  // 注 4
+  router.post("/save").handler(this::pageUpdateHandler);
+  router.post("/create").handler(this::pageCreateHandler);
+  router.post("/delete").handler(this::pageDeletionHandler);
+
+  server
+    .requestHandler(router::accept)   // 注 5
+    .listen(8080, ar -> {   // 注 6
+      if (ar.succeeded()) {
+        LOGGER.info("HTTP server running on port 8080");
+        future.complete();
+      } else {
+        LOGGER.error("Could not start a HTTP server", ar.cause());
+        future.fail(ar.cause());
+      }
+    });
+
+  return future;
+}
+```
+
+注：
 
 1. ```vertx``` 上下文对象提供了方法来创建 HTTP 服务器、客户端，TCP/UDP 服务器、客户端等等。
 2. ```Router``` 类来自 ```vertx-web```: ```io.vertx.ext.web.Router```。
