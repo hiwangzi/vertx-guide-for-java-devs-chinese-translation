@@ -640,3 +640,49 @@ private void pageCreateHandler(RoutingContext context) {
   context.response().end();
 }
 ```
+
+#### 保存页面 handler
+
+```pageUpdateHandler``` 方法处理保存 Wiki 页面时的 HTTP POST 请求。可能有两种情况：一是更新已有的页面（使用 SQL ```update```）；或者保存一个新页面（使用 SQL ```insert```）
+
+```java
+private void pageUpdateHandler(RoutingContext context) {
+  String id = context.request().getParam("id");   // 注 1
+  String title = context.request().getParam("title");
+  String markdown = context.request().getParam("markdown");
+  boolean newPage = "yes".equals(context.request().getParam("newPage"));  // 注 2
+
+  dbClient.getConnection(car -> {
+    if (car.succeeded()) {
+      SQLConnection connection = car.result();
+      String sql = newPage ? SQL_CREATE_PAGE : SQL_SAVE_PAGE;
+      JsonArray params = new JsonArray();   // 注 3
+      if (newPage) {
+        params.add(title).add(markdown);
+      } else {
+        params.add(markdown).add(id);
+      }
+      connection.updateWithParams(sql, params, res -> {   // 注 4
+        connection.close();
+        if (res.succeeded()) {
+          context.response().setStatusCode(303);    // 注 5
+          context.response().putHeader("Location", "/wiki/" + title);
+          context.response().end();
+        } else {
+          context.fail(res.cause());
+        }
+      });
+    } else {
+      context.fail(car.cause());
+    }
+  });
+}
+```
+
+注：
+
+1. 通过 HTTP POST 请求的表单参数可以通过 ```RoutingContext``` 取得。注意：如果没有提供```BodyHandler```，这些参数就无法直接取得，需要从 HTTP POST 请求 payload 中手动解码得到表单数据。
+2. 我们需要从 ```page.ftl``` FreeMarker 模板渲染的页面中取得表单的一个隐藏字段，来得知是更新页面还是新增一个页面。
+3. 同样是采用 ```JsonArray``` 来传递数据给预编译的 SQL。
+4. ```updateWithParams``` 方法被用来执行 ```insert``` / ```update``` / ```delete``` SQL 操作。
+5. 成功后，我们简单地重定向到被编辑后的页面。
