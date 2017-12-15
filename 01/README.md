@@ -366,3 +366,141 @@ private Future<Void> startHttpServer() {
 4. 这将会使所有 HTTP POST 请求通过 ```io.vertx.ext.web.handler.BodyHandler``` 这个 handler。它将自动的解码来自 HTTP 请求（例如，表单提交）（它们可以被作为 Vert.x buffer 对象来使用）的 body 体。
 5. router 对象可以被用来作为 HTTP 服务器的 handler，然后分发请求给之前定义的其他 handler。
 6. 开启一个 HTTP 服务器是异步操作，因此需要 ```AsyncResult<HttpServer>``` 来检查操作是否成功。```8080``` 参数具体指定了服务器的 TCP 端口。
+
+### HTTP router handlers
+
+```startHttpServer``` 方法的 HTTP 路由实例根据 URL 模式及 HTTP 方法的不同指向不同的 handler。每一个 handler 处理一个 HTTP 请求，执行数据库查询，以及使用 FreeMarker 模板来渲染 HTML 页面。
+
+#### 索引页（主页） handler
+
+主页提供了所有 wiki 页面的入口及一个创建新 wiki 的区域。
+
+![index](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/index.png)
+
+通过一个简单的 ```select *``` SQL 查询，并将数据交由 FreeMarker 引擎来渲染得到 HTML 响应。
+
+```indexHandler``` 方法代码如下所示：
+
+```java
+private final FreeMarkerTemplateEngine templateEngine = FreeMarkerTemplateEngine.create();
+
+private void indexHandler(RoutingContext context) {
+  dbClient.getConnection(car -> {
+    if (car.succeeded()) {
+      SQLConnection connection = car.result();
+      connection.query(SQL_ALL_PAGES, res -> {
+        connection.close();
+
+        if (res.succeeded()) {
+          List<String> pages = res.result() // 注 1
+            .getResults()
+            .stream()
+            .map(json -> json.getString(0))
+            .sorted()
+            .collect(Collectors.toList());
+
+          context.put("title", "Wiki home");  // 注 2
+          context.put("pages", pages);
+          templateEngine.render(context, "templates", "/index.ftl", ar -> {   // 注 3
+            if (ar.succeeded()) {
+              context.response().putHeader("Content-Type", "text/html");
+              context.response().end(ar.result());  // 注 4
+            } else {
+              context.fail(ar.cause());
+            }
+          });
+
+        } else {
+          context.fail(res.cause());  // 注 5
+        }
+      });
+    } else {
+      context.fail(car.cause());
+    }
+  });
+}
+```
+
+注：
+
+1. SQL 查询结果以 ```JsonArray``` 和 ```JsonObject``` 实例的形式返回。
+2. ```RoutingContext``` 实例可以放置任意内容的键值对，可以供之后的模板或路由 handler 使用。
+3. 渲染一个模板同样是异步操作，也使用 ```AsyncResult``` 处理方式。
+4. 当成功时，```AsyncResult``` 包含的是渲染后的内容（以 ```String``` 形式），因此我们可以使用它来结束 HTTP 响应流。
+5. 当失败时，```RoutingContext``` 的 ```fail``` 方法提供了一个合理的途径返回 HTTP 500 error 给 HTTP 客户端。
+
+FreeMarker 模板应当被放置在 ```src/main/resources/templates``` 目录。```index.ftl``` 模板代码如下所示：
+
+```html
+<#include "header.ftl">
+
+<div class="row">
+
+  <div class="col-md-12 mt-1">
+    <div class="float-xs-right">
+      <form class="form-inline" action="/create" method="post">
+        <div class="form-group">
+          <input type="text" class="form-control" id="name" name="name" placeholder="New page name">
+        </div>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </form>
+    </div>
+    <h1 class="display-4">${context.title}</h1>
+  </div>
+
+  <div class="col-md-12 mt-1">
+  <#list context.pages>
+    <h2>Pages:</h2>
+    <ul>
+      <#items as page>
+        <li><a href="/wiki/${page}">${page}</a></li>
+      </#items>
+    </ul>
+  <#else>
+    <p>The wiki is currently empty!</p>
+  </#list>
+  </div>
+
+</div>
+
+<#include "footer.ftl">
+```
+
+通过 FreeMarker 变量 ```context```，可以使用存储在 ```RoutingContext``` 对象之中的键值对数据。
+
+因为很多模板都有着共同的页头与页脚，所以我们将其分离为 ```header.ftl``` 和 ```footer.ftl```：
+
+* ```header.ftl```
+  ```html
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.5/css/bootstrap.min.css"
+          integrity="sha384-AysaV+vQoT3kOAXZkl02PThvDr8HYKPZhNT5h/CXfBThSRXQ6jW5DO2ekP5ViFdi" crossorigin="anonymous">
+    <title>${context.title} | A Sample Vert.x-powered Wiki</title>
+  </head>
+  <body>
+
+  <div class="container">
+  ```
+
+* ```footer.ftl```
+  ```html
+  </div> <!-- .container -->
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"
+          integrity="sha384-3ceskX3iaEnIogmQchP8opvBy3Mi7Ce34nWjpBIwVTHfGYWQS9jwHDVRnpKKHJg7"
+          crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.3.7/js/tether.min.js"
+          integrity="sha384-XTs3FgkjiBgo8qjEjBk0tGmf3wPrWtA6coPfQDfFEY8AnYJwjalXCiosYRBIBZX8"
+          crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.5/js/bootstrap.min.js"
+          integrity="sha384-BLiI7JTZm+JWlgKa0M0kGRpJbF2J8q+qreVrKBC47e3K6BW78kGLrCkeRX6I9RoK"
+          crossorigin="anonymous"></script>
+
+  </body>
+  </html>
+  ```
