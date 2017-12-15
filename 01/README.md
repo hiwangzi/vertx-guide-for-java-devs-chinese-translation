@@ -621,3 +621,22 @@ private void pageRenderingHandler(RoutingContext context) {
 
 <#include "footer.ftl">
 ```
+
+#### 创建页面 handler
+
+首页提供了一个区域来创建新页面，内容部分的页面的处理由此 handler 负责。此 handler 实际上并不是在数据库中新增一条记录，而是简单的重定向到 Wiki 页面（以名字为 URL 参数）。因为这个页面不存在，所以 ```pageRenderingHandler``` 方法将在新页面使用默认文本，只有在编辑结束保存时，才最终创建页面。
+
+```pageRenderingHandler``` 方法通过 HTTP 303 状态码重定向来实现：
+
+```java
+private void pageCreateHandler(RoutingContext context) {
+  String pageName = context.request().getParam("name");
+  String location = "/wiki/" + pageName;
+  if (pageName == null || pageName.isEmpty()) {
+    location = "/";
+  }
+  context.response().setStatusCode(303);
+  context.response().putHeader("Location", location);
+  context.response().end();
+}
+```
