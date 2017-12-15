@@ -504,3 +504,72 @@ FreeMarker 模板应当被放置在 ```src/main/resources/templates``` 目录。
   </body>
   </html>
   ```
+
+#### Wiki 页面渲染 handler
+
+此 handler 处理 HTTP GET 请求，生成一个渲染过的 Wiki 页面，就像下图一样：
+
+![page](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/page.png)
+
+此页面同样提供了一个编辑按钮来以 Markdown 形式编辑内容。当按钮被点击时，不需要使用不同的 handler 与模板，只需简单的使用 JavaScript 和 CSS 来切换编辑器的开与关即可。
+
+![edit](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/edit.png)
+
+```pageRenderingHandler``` 方法代码如下：
+
+```java
+private static final String EMPTY_PAGE_MARKDOWN =
+  "# A new page\n" +
+    "\n" +
+    "Feel-free to write in Markdown!\n";
+
+private void pageRenderingHandler(RoutingContext context) {
+  String page = context.request().getParam("page");   // 注 1
+
+  dbClient.getConnection(car -> {
+    if (car.succeeded()) {
+
+      SQLConnection connection = car.result();
+      connection.queryWithParams(SQL_GET_PAGE, new JsonArray().add(page), fetch -> {  // 注 2
+        connection.close();
+        if (fetch.succeeded()) {
+
+          JsonArray row = fetch.result().getResults()
+            .stream()
+            .findFirst()
+            .orElseGet(() -> new JsonArray().add(-1).add(EMPTY_PAGE_MARKDOWN));
+          Integer id = row.getInteger(0);
+          String rawContent = row.getString(1);
+
+          context.put("title", page);
+          context.put("id", id);
+          context.put("newPage", fetch.result().getResults().size() == 0 ? "yes" : "no");
+          context.put("rawContent", rawContent);
+          context.put("content", Processor.process(rawContent));  // 注 3
+          context.put("timestamp", new Date().toString());
+
+          templateEngine.render(context, "templates", "/page.ftl", ar -> {
+            if (ar.succeeded()) {
+              context.response().putHeader("Content-Type", "text/html");
+              context.response().end(ar.result());
+            } else {
+              context.fail(ar.cause());
+            }
+          });
+        } else {
+          context.fail(fetch.cause());
+        }
+      });
+
+    } else {
+      context.fail(car.cause());
+    }
+  });
+}
+```
+
+注：
+
+1. URL 参数（```/wiki/:name```）可以通过 context request 对象取得。
+2. 通过 ```JsonArray``` 按照 ```?``` 的顺序，来传递参数给 SQL 查询。
+3. ```Processor``` 类来自我们使用的 *txtmark* Markdown 渲染库。
