@@ -514,3 +514,53 @@ private void reportQueryError(Message<JsonObject> message, Throwable cause) {
   message.fail(ErrorCodes.DB_ERROR.ordinal(), cause.getMessage());
 }
 ```
+
+### 在 main verticle 中部署 verticles
+
+我们仍然有 ```MainVerticle``` 类，但不同于第一版包含所有业务逻辑代码，它的作用只是启动应用，部署其他verticle。
+
+下面的代码部署了一个 ```WikiDatabaseVerticle``` 实例，两个 ```HttpServerVerticle``` 实例：
+
+```java
+public class MainVerticle extends AbstractVerticle {
+
+  @Override
+  public void start(Future<Void> startFuture) throws Exception {
+
+    Future<String> dbVerticleDeployment = Future.future();  // 注 1
+    vertx.deployVerticle(new WikiDatabaseVerticle(), dbVerticleDeployment.completer());  // 注 2
+
+    dbVerticleDeployment.compose(id -> {  // 注 3
+
+      Future<String> httpVerticleDeployment = Future.future();
+      vertx.deployVerticle(
+        "io.vertx.guides.wiki.HttpServerVerticle",  // 注 4
+        new DeploymentOptions().setInstances(2),    // 注 5
+        httpVerticleDeployment.completer());
+
+      return httpVerticleDeployment;  // 注 6
+
+    }).setHandler(ar -> {   // 注 7
+      if (ar.succeeded()) {
+        startFuture.complete();
+      } else {
+        startFuture.fail(ar.cause());
+      }
+    });
+  }
+}
+```
+
+注：
+
+1. 部署一个 verticle 是异步操作，所以我们需要一个 ```Future```。参数类型是 ```String``` 的原因是在成功部署之后，会得到一个 verticle 的标识符。
+2. 部署的一种方式是使用 ```new``` 来创建一个 verticle 实例，然后将其对象引用传递给 ```deploy``` 方法。```completer``` 返回的值是一个 handler，其用来简单的完成这个 future。
+3. 使用 ```compose``` 按顺序的组合可以实现在其后执行异步操作。当前面的 future 成功完成，组合函数就被激活。
+4. 可以通过类名作为字符串来指定一个 verticle 来部署。对于其他 JVM 语言来说，基于字符串的允许一个 module / script 被指定。
+5. ```DeploymentOption``` 类允许指定部署的实例个数。
+6. 组合函数返回下一个 future。它的完成将触发组合操作的完成。
+7. 我们定义了一个 handler 来最终完成 ```MainVerticle``` start future。
+
+聪明的你可能会奇怪为什么 HTTP server 可以被部署到同一个 TCP 端口两次，而不会出现因为端口占用的错误。因为对于大多数的 web 框架来说，我们需要选择不同的 TCP 端口，并且需要一个前置的 HTTP 代理来实现端口间的负载均衡。
+
+而 Vert.x 的 verticle 可以实现多个 verticle 共享一个 TCP 端口。来自接收线程（accepting threads）传入的网络连接会简单得基于轮询模式分配。
