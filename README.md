@@ -23,3 +23,5 @@
     * [运行我们的应用](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#运行我们的应用)
 
 * [02. 重构：独立可重用的 Verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md)
+    * [架构与技术选择](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#架构与技术选择)
+
