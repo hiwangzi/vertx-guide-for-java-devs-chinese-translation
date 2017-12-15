@@ -324,3 +324,49 @@ public void start(Future<Void> startFuture) throws Exception {
 1. 有趣的是我们打破了 Vert.x 中非常重要的一个原则 —— 避免阻塞式 API，但访问 classpath 的资源并没有异步式的接口，因此我们选择非常有限。我们可以使用 Vert.x ```executeBlocking``` 方法来将阻塞式 I/O 操作从 event loop 中拆解到其他线程（a worker thread），但因为数据非常小，这样做并不会有明显的好处。
 2. 这是一个使用 SQL 语句的例子。
 3. ```consumer``` 方法注册一个 event bus 终点 handler。（The ```consumer``` method registers an event bus destination handler.）
+
+#### 分发请求
+
+event bus 消息的 handler 就是 ```onMessage``` 方法：
+
+```java
+public enum ErrorCodes {
+  NO_ACTION_SPECIFIED,
+  BAD_ACTION,
+  DB_ERROR
+}
+
+public void onMessage(Message<JsonObject> message) {
+
+  if (!message.headers().contains("action")) {
+    LOGGER.error("No action header specified for message with headers {} and body {}",
+      message.headers(), message.body().encodePrettily());
+    message.fail(ErrorCodes.NO_ACTION_SPECIFIED.ordinal(), "No action header specified");
+    return;
+  }
+  String action = message.headers().get("action");
+
+  switch (action) {
+    case "all-pages":
+      fetchAllPages(message);
+      break;
+    case "get-page":
+      fetchPage(message);
+      break;
+    case "create-page":
+      createPage(message);
+      break;
+    case "save-page":
+      savePage(message);
+      break;
+    case "delete-page":
+      deletePage(message);
+      break;
+    default:
+      message.fail(ErrorCodes.BAD_ACTION.ordinal(), "Bad action: " + action);
+  }
+}
+```
+
+我们为各种错误定义了一个 ```ErrorCodes``` 枚举，其可以被用来报告错误给消息发送者。```Message``` 类的 ```fail``` 方法
+提供了一个快捷方便得回复错误的方式，原始的消息发送者会得到一个失败的 ```AsyncResult```。
