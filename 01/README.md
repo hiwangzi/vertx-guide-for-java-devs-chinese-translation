@@ -713,3 +713,21 @@ private void pageDeletionHandler(RoutingContext context) {
   });
 }
 ```
+
+### 运行我们的应用
+
+至此，我们的 Wiki 应用可以正常工作并且功能完备。
+
+在运行之前，首先要使用 Maven 构建我们的项目：
+
+```
+$ mvn clean package
+```
+
+因为最终得到的 Jar 文件包含了所有需要的依赖（包括 Vert.x 和 JDBC 数据库），所以运行起我们的应用非常简单：
+
+```
+$ java -jar target/wiki-step-1-1.1.0-fat.jar
+```
+
+然后就可以使用浏览器访问 http://localhost:8080/ 来享用我们的 Wiki 应用啦~
