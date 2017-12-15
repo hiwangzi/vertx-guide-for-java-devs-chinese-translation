@@ -370,3 +370,147 @@ public void onMessage(Message<JsonObject> message) {
 
 我们为各种错误定义了一个 ```ErrorCodes``` 枚举，其可以被用来报告错误给消息发送者。```Message``` 类的 ```fail``` 方法
 提供了一个快捷方便得回复错误的方式，原始的消息发送者会得到一个失败的 ```AsyncResult```。
+
+#### 减少 JDBC 客户端构建代码
+
+到目前为止，可以看到执行 SQL 查询的完整交互：
+
+1. 取得连接
+2. 执行请求
+3. 释放连接
+
+就像下面的代码一样，这会导致每个异步操作，都需要大量的错误处理代码：
+
+```java
+dbClient.getConnection(car -> {
+  if (car.succeeded()) {
+    SQLConnection connection = car.result();
+    connection.query(sqlQueries.get(SqlQuery.ALL_PAGES), res -> {
+      connection.close();
+      if (res.succeeded()) {
+        List<String> pages = res.result()
+          .getResults()
+          .stream()
+          .map(json -> json.getString(0))
+          .sorted()
+          .collect(Collectors.toList());
+        message.reply(new JsonObject().put("pages", new JsonArray(pages)));
+      } else {
+        reportQueryError(message, res.cause());
+      }
+    });
+  } else {
+    reportQueryError(message, car.cause());
+  }
+});
+```
+
+从 Vert.x 3.5.0 开始，JDBC 连接开始支持一步到位的操作，其可以提供一个连接来执行 SQL 操作，然后自己释放掉。与上面代码功能一致，精简过后的代码如下所示：
+
+```java
+dbClient.query(sqlQueries.get(SqlQuery.ALL_PAGES), res -> {
+  if (res.succeeded()) {
+    List<String> pages = res.result()
+      .getResults()
+      .stream()
+      .map(json -> json.getString(0))
+      .sorted()
+      .collect(Collectors.toList());
+    message.reply(new JsonObject().put("pages", new JsonArray(pages)));
+  } else {
+    reportQueryError(message, res.cause());
+  }
+});
+```
+
+这对于需要取得连接，只执行一个操作的场景非常有用。当然对于一连串的 SQL 操作来说，重复使用一个连接会使得性能更好。
+
+类中剩下的代码包含 ```onMessage``` 分发传入的消息后需要被调用的私有方法：
+
+```java
+private void fetchAllPages(Message<JsonObject> message) {
+  dbClient.query(sqlQueries.get(SqlQuery.ALL_PAGES), res -> {
+    if (res.succeeded()) {
+      List<String> pages = res.result()
+        .getResults()
+        .stream()
+        .map(json -> json.getString(0))
+        .sorted()
+        .collect(Collectors.toList());
+      message.reply(new JsonObject().put("pages", new JsonArray(pages)));
+    } else {
+      reportQueryError(message, res.cause());
+    }
+  });
+}
+
+private void fetchPage(Message<JsonObject> message) {
+  String requestedPage = message.body().getString("page");
+  JsonArray params = new JsonArray().add(requestedPage);
+
+  dbClient.queryWithParams(sqlQueries.get(SqlQuery.GET_PAGE), params, fetch -> {
+    if (fetch.succeeded()) {
+      JsonObject response = new JsonObject();
+      ResultSet resultSet = fetch.result();
+      if (resultSet.getNumRows() == 0) {
+        response.put("found", false);
+      } else {
+        response.put("found", true);
+        JsonArray row = resultSet.getResults().get(0);
+        response.put("id", row.getInteger(0));
+        response.put("rawContent", row.getString(1));
+      }
+      message.reply(response);
+    } else {
+      reportQueryError(message, fetch.cause());
+    }
+  });
+}
+
+private void createPage(Message<JsonObject> message) {
+  JsonObject request = message.body();
+  JsonArray data = new JsonArray()
+    .add(request.getString("title"))
+    .add(request.getString("markdown"));
+
+  dbClient.updateWithParams(sqlQueries.get(SqlQuery.CREATE_PAGE), data, res -> {
+    if (res.succeeded()) {
+      message.reply("ok");
+    } else {
+      reportQueryError(message, res.cause());
+    }
+  });
+}
+
+private void savePage(Message<JsonObject> message) {
+  JsonObject request = message.body();
+  JsonArray data = new JsonArray()
+    .add(request.getString("markdown"))
+    .add(request.getString("id"));
+
+  dbClient.updateWithParams(sqlQueries.get(SqlQuery.SAVE_PAGE), data, res -> {
+    if (res.succeeded()) {
+      message.reply("ok");
+    } else {
+      reportQueryError(message, res.cause());
+    }
+  });
+}
+
+private void deletePage(Message<JsonObject> message) {
+  JsonArray data = new JsonArray().add(message.body().getString("id"));
+
+  dbClient.updateWithParams(sqlQueries.get(SqlQuery.DELETE_PAGE), data, res -> {
+    if (res.succeeded()) {
+      message.reply("ok");
+    } else {
+      reportQueryError(message, res.cause());
+    }
+  });
+}
+
+private void reportQueryError(Message<JsonObject> message, Throwable cause) {
+  LOGGER.error("Database query error", cause);
+  message.fail(ErrorCodes.DB_ERROR.ordinal(), cause.getMessage());
+}
+```
