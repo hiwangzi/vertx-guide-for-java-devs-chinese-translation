@@ -2,6 +2,10 @@
 
 这是 Vert.x 官方文档 [A gentle guide to asynchronous programming with Eclipse Vert.x for Java developers](http://vertx.io/docs/guide-for-java-devs) 非官方中文翻译。
 
+其英文原版在 GitHub 上的位置： https://github.com/vert-x3/vertx-guide-for-java-devs
+
+翻译不当之处，欢迎指正！
+
 ## 目录
 
 * [00. 介绍](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/00/README.md)
@@ -16,4 +20,6 @@
     * [A word on Vert.x future objects and callbacks](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#a-word-on-vertx-future-objects-and-callbacks)
     * [Wiki verticle 初始化的步骤](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#wiki-verticle-初始化的步骤)
     * [HTTP router handlers](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#http-router-handlers)
-    * [运行我们的应用](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#running-the-application)
+    * [运行我们的应用](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#运行我们的应用)
+
+* [02. 重构：独立可重用的 Verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md)
