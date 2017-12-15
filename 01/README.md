@@ -686,3 +686,30 @@ private void pageUpdateHandler(RoutingContext context) {
 3. 同样是采用 ```JsonArray``` 来传递数据给预编译的 SQL。
 4. ```updateWithParams``` 方法被用来执行 ```insert``` / ```update``` / ```delete``` SQL 操作。
 5. 成功后，我们简单地重定向到被编辑后的页面。
+
+#### 删除页面 handler
+
+```pageDeletionHandler``` 方法的实现很简单：给定 Wiki 页面的唯一标识，执行 ```delete``` SQL 操作，然后重定向到 Wiki 首页：
+
+```java
+private void pageDeletionHandler(RoutingContext context) {
+  String id = context.request().getParam("id");
+  dbClient.getConnection(car -> {
+    if (car.succeeded()) {
+      SQLConnection connection = car.result();
+      connection.updateWithParams(SQL_DELETE_PAGE, new JsonArray().add(id), res -> {
+        connection.close();
+        if (res.succeeded()) {
+          context.response().setStatusCode(303);
+          context.response().putHeader("Location", "/");
+          context.response().end();
+        } else {
+          context.fail(res.cause());
+        }
+      });
+    } else {
+      context.fail(car.cause());
+    }
+  });
+}
+```
