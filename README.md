@@ -24,4 +24,5 @@
 
 * [02. 重构：独立可重用的 Verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md)
     * [架构与技术选择](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#架构与技术选择)
+    * [HTTP 服务器 verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#http-服务器-verticle)
 
