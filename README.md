@@ -16,3 +16,4 @@
     * [A word on Vert.x future objects and callbacks](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#a-word-on-vertx-future-objects-and-callbacks)
     * [Wiki verticle 初始化的步骤](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#wiki-verticle-初始化的步骤)
     * [HTTP router handlers](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#http-router-handlers)
+    * [运行我们的应用](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/README.md#running-the-application)
