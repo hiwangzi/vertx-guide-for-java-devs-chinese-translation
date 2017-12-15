@@ -26,4 +26,5 @@
     * [架构与技术选择](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#架构与技术选择)
     * [HTTP 服务器 verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#http-服务器-verticle)
     * [数据库 verticle](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#数据库-verticle)
-
+    * [在 main verticle 中部署 verticles](
+    https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#在-main-verticle-中部署-verticles)
