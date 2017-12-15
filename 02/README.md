@@ -205,3 +205,122 @@ private void pageDeletionHandler(RoutingContext context) {
   });
 }
 ```
+
+### 数据库 verticle
+
+通过 JDBC 连接数据库自然需要用到 driver 及其配置，在之前的版本中，其被我们硬编码到代码之中。
+
+#### 可配置的 SQL 查询
+
+虽然 verticle 可以使用先前硬编码的值作为配置参数，但我们可以更进一步，从 properties 文件中加载 SQL 查询语句。
+
+查询语句会从文件中加载来作为配置参数，当不存在时会从默认资源中取得。这种方法的优势在于可以适应不同的 JDBC driver 和 SQL 方言。
+
+Verticle 类前半部分主要是配置键的定义：
+
+```java
+public class WikiDatabaseVerticle extends AbstractVerticle {
+
+  public static final String CONFIG_WIKIDB_JDBC_URL = "wikidb.jdbc.url";
+  public static final String CONFIG_WIKIDB_JDBC_DRIVER_CLASS = "wikidb.jdbc.driver_class";
+  public static final String CONFIG_WIKIDB_JDBC_MAX_POOL_SIZE = "wikidb.jdbc.max_pool_size";
+  public static final String CONFIG_WIKIDB_SQL_QUERIES_RESOURCE_FILE = "wikidb.sqlqueries.resource.file";
+
+  public static final String CONFIG_WIKIDB_QUEUE = "wikidb.queue";
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(WikiDatabaseVerticle.class);
+
+  // (...)
+```
+
+SQL 查询被存储在一个 properties 文件，对于 HSQLDB 默认情况下，存储于 ```src/main/resources/db-queries.properties```：
+```
+create-pages-table=create table if not exists Pages (Id integer identity primary key, Name varchar(255) unique, Content clob)
+get-page=select Id, Content from Pages where Name = ?
+create-page=insert into Pages values (NULL, ?, ?)
+save-page=update Pages set Content = ? where Id = ?
+all-pages=select Name from Pages
+delete-page=delete from Pages where Id = ?
+```
+
+下面是 ```WikiDatabaseVerticle``` 类从文件中加载 SQL 查询，并存入一个 map 的代码：
+
+```java
+private enum SqlQuery {
+  CREATE_PAGES_TABLE,
+  ALL_PAGES,
+  GET_PAGE,
+  CREATE_PAGE,
+  SAVE_PAGE,
+  DELETE_PAGE
+}
+
+private final HashMap<SqlQuery, String> sqlQueries = new HashMap<>();
+
+private void loadSqlQueries() throws IOException {
+
+  String queriesFile = config().getString(CONFIG_WIKIDB_SQL_QUERIES_RESOURCE_FILE);
+  InputStream queriesInputStream;
+  if (queriesFile != null) {
+    queriesInputStream = new FileInputStream(queriesFile);
+  } else {
+    queriesInputStream = getClass().getResourceAsStream("/db-queries.properties");
+  }
+
+  Properties queriesProps = new Properties();
+  queriesProps.load(queriesInputStream);
+  queriesInputStream.close();
+
+  sqlQueries.put(SqlQuery.CREATE_PAGES_TABLE, queriesProps.getProperty("create-pages-table"));
+  sqlQueries.put(SqlQuery.ALL_PAGES, queriesProps.getProperty("all-pages"));
+  sqlQueries.put(SqlQuery.GET_PAGE, queriesProps.getProperty("get-page"));
+  sqlQueries.put(SqlQuery.CREATE_PAGE, queriesProps.getProperty("create-page"));
+  sqlQueries.put(SqlQuery.SAVE_PAGE, queriesProps.getProperty("save-page"));
+  sqlQueries.put(SqlQuery.DELETE_PAGE, queriesProps.getProperty("delete-page"));
+}
+```
+
+我们使用 ```SqlQuery``` 枚举类型来避免之后在代码中使用字符串常量。此 verticle 的 ```start``` 方法如下所示：
+
+```java
+private JDBCClient dbClient;
+
+@Override
+public void start(Future<Void> startFuture) throws Exception {
+
+  /*
+   * Note: this uses blocking APIs, but data is small...
+   */
+  loadSqlQueries();  // 注 1
+
+  dbClient = JDBCClient.createShared(vertx, new JsonObject()
+    .put("url", config().getString(CONFIG_WIKIDB_JDBC_URL, "jdbc:hsqldb:file:db/wiki"))
+    .put("driver_class", config().getString(CONFIG_WIKIDB_JDBC_DRIVER_CLASS, "org.hsqldb.jdbcDriver"))
+    .put("max_pool_size", config().getInteger(CONFIG_WIKIDB_JDBC_MAX_POOL_SIZE, 30)));
+
+  dbClient.getConnection(ar -> {
+    if (ar.failed()) {
+      LOGGER.error("Could not open a database connection", ar.cause());
+      startFuture.fail(ar.cause());
+    } else {
+      SQLConnection connection = ar.result();
+      connection.execute(sqlQueries.get(SqlQuery.CREATE_PAGES_TABLE), create -> {   // 注 2
+        connection.close();
+        if (create.failed()) {
+          LOGGER.error("Database preparation error", create.cause());
+          startFuture.fail(create.cause());
+        } else {
+          vertx.eventBus().consumer(config().getString(CONFIG_WIKIDB_QUEUE, "wikidb.queue"), this::onMessage);  // 注 3
+          startFuture.complete();
+        }
+      });
+    }
+  });
+}
+```
+
+注：
+
+1. 有趣的是我们打破了 Vert.x 中非常重要的一个原则 —— 避免阻塞式 API，但访问 classpath 的资源并没有异步式的接口，因此我们选择非常有限。我们可以使用 Vert.x ```executeBlocking``` 方法来将阻塞式 I/O 操作从 event loop 中拆解到其他线程（a worker thread），但因为数据非常小，这样做并不会有明显的好处。
+2. 这是一个使用 SQL 语句的例子。
+3. ```consumer``` 方法注册一个 event bus 终点 handler。（The ```consumer``` method registers an event bus destination handler.）
