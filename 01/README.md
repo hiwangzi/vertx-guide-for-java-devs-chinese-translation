@@ -54,7 +54,7 @@ Maven 项目的 ```pom.xml``` 做了两件有趣的事：
 
 首先在 Maven ```pom.xml``` 文件中添加用于 web 处理和渲染的依赖：
 
-```
+```xml
 <dependency>
   <groupId>io.vertx</groupId>
   <artifactId>vertx-web</artifactId>
@@ -76,7 +76,7 @@ Maven 项目的 ```pom.xml``` 做了两件有趣的事：
 
 然后添加 JDBC 数据访问相关的依赖：
 
-```
+```xml
 <dependency>
   <groupId>io.vertx</groupId>
   <artifactId>vertx-jdbc-client</artifactId>
