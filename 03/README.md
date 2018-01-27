@@ -37,8 +37,8 @@ step-3/src/main/java/
 
 ```xml
 <dependency>
-  <groupId>io.vertx</groupId>
-  <artifactId>vertx-service-proxy</artifactId>
+    <groupId>io.vertx</groupId>
+    <artifactId>vertx-service-proxy</artifactId>
 </dependency>
 ```
 
@@ -46,9 +46,9 @@ step-3/src/main/java/
 
 ```xml
 <dependency>
-  <groupId>io.vertx</groupId>
-  <artifactId>vertx-codegen</artifactId>
-  <scope>provided</scope>
+    <groupId>io.vertx</groupId>
+    <artifactId>vertx-codegen</artifactId>
+    <scope>provided</scope>
 </dependency>
 ```
 
@@ -56,22 +56,22 @@ step-3/src/main/java/
 
 ```xml
 <plugin>
-  <artifactId>maven-compiler-plugin</artifactId>
-  <version>3.5.1</version>
-  <configuration>
-    <source>1.8</source>
-    <target>1.8</target>
-    <useIncrementalCompilation>false</useIncrementalCompilation>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <version>3.5.1</version>
+    <configuration>
+        <source>1.8</source>
+        <target>1.8</target>
+        <useIncrementalCompilation>false</useIncrementalCompilation>
 
-    <annotationProcessors>
-      <annotationProcessor>io.vertx.codegen.CodeGenProcessor</annotationProcessor>
-    </annotationProcessors>
-    <generatedSourcesDirectory>${project.basedir}/src/main/generated</generatedSourcesDirectory>
-    <compilerArgs>
-      <arg>-AoutputDirectory=${project.basedir}/src/main</arg>
-    </compilerArgs>
+        <annotationProcessors>
+            <annotationProcessor>io.vertx.codegen.CodeGenProcessor</annotationProcessor>
+        </annotationProcessors>
+        <generatedSourcesDirectory>${project.basedir}/src/main/generated</generatedSourcesDirectory>
+        <compilerArgs>
+            <arg>-AoutputDirectory=${project.basedir}/src/main</arg>
+        </compilerArgs>
 
-  </configuration>
+    </configuration>
 </plugin>
 ```
 
@@ -81,15 +81,15 @@ step-3/src/main/java/
 
 ```xml
 <plugin>
-  <artifactId>maven-clean-plugin</artifactId>
-  <version>3.0.0</version>
-  <configuration>
-    <filesets>
-      <fileset>
-        <directory>${project.basedir}/src/main/generated</directory>
-      </fileset>
-    </filesets>
-  </configuration>
+    <artifactId>maven-clean-plugin</artifactId>
+    <version>3.0.0</version>
+    <configuration>
+        <filesets>
+        <fileset>
+            <directory>${project.basedir}/src/main/generated</directory>
+        </fileset>
+        </filesets>
+    </configuration>
 </plugin>
 ```
 
@@ -103,22 +103,22 @@ step-3/src/main/java/
 @ProxyGen
 public interface WikiDatabaseService {
 
-  @Fluent
-  WikiDatabaseService fetchAllPages(Handler<AsyncResult<JsonArray>> resultHandler);
+    @Fluent
+    WikiDatabaseService fetchAllPages(Handler<AsyncResult<JsonArray>> resultHandler);
 
-  @Fluent
-  WikiDatabaseService fetchPage(String name, Handler<AsyncResult<JsonObject>> resultHandler);
+    @Fluent
+    WikiDatabaseService fetchPage(String name, Handler<AsyncResult<JsonObject>> resultHandler);
 
-  @Fluent
-  WikiDatabaseService createPage(String title, String markdown, Handler<AsyncResult<Void>> resultHandler);
+    @Fluent
+    WikiDatabaseService createPage(String title, String markdown, Handler<AsyncResult<Void>> resultHandler);
 
-  @Fluent
-  WikiDatabaseService savePage(int id, String markdown, Handler<AsyncResult<Void>> resultHandler);
+    @Fluent
+    WikiDatabaseService savePage(int id, String markdown, Handler<AsyncResult<Void>> resultHandler);
 
-  @Fluent
-  WikiDatabaseService deletePage(int id, Handler<AsyncResult<Void>> resultHandler);
+    @Fluent
+    WikiDatabaseService deletePage(int id, Handler<AsyncResult<Void>> resultHandler);
 
-  // (...)
+    // (...)
 ```
 
 1. 通过 ```ProxyGen``` 注解的使用来触发此 service 的客户端代理代码的生成。
@@ -132,7 +132,7 @@ service 接口提供一个静态方法来为所有实际的实现提供实例对
 
 ```java
 static WikiDatabaseService create(JDBCClient dbClient, HashMap<SqlQuery, String> sqlQueries, Handler<AsyncResult<WikiDatabaseService>> readyHandler) {
-  return new WikiDatabaseServiceImpl(dbClient, sqlQueries, readyHandler);
+    return new WikiDatabaseServiceImpl(dbClient, sqlQueries, readyHandler);
 }
 ```
 
@@ -141,3 +141,135 @@ The Vert.x code generator creates the proxy class and names it by suffixing with
 Vert.x 代码生成器创建的代理类名字为类名加上 ```VertxEBProxy``` 后缀。代理类的构造方法需要 Vert.x 上下文引用以及 event bus 的目标地址。
 
 > 注意：在上一版中，我们将 ```SqlQuery``` 和 ```ErrorCodes``` 枚举类型定义为了内部类，而这一版中，它们分别定义在 ```SqlQuery.java``` 和 ```ErrorCodes.java``` 之中。（译者注：可以直接去最前面提到的地址中获取代码）
+
+### 数据库服务实现
+
+数据库服务的实现就是上一版 ```WikiDatabaseVerticle``` 的直白版。最主要的区别就是构造函数提供异步结果 handler（来报告初始化结果），以及方法也同样提供了异步结果（来告知操作是否成功）。
+
+类代码如下所示：
+
+```java
+class WikiDatabaseServiceImpl implements WikiDatabaseService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(WikiDatabaseServiceImpl.class);
+
+    private final HashMap<SqlQuery, String> sqlQueries;
+    private final JDBCClient dbClient;
+
+    WikiDatabaseServiceImpl(JDBCClient dbClient, HashMap<SqlQuery, String> sqlQueries, Handler<AsyncResult<WikiDatabaseService>> readyHandler) {
+        this.dbClient = dbClient;
+        this.sqlQueries = sqlQueries;
+
+        dbClient.getConnection(ar -> {
+        if (ar.failed()) {
+            LOGGER.error("Could not open a database connection", ar.cause());
+            readyHandler.handle(Future.failedFuture(ar.cause()));
+        } else {
+            SQLConnection connection = ar.result();
+            connection.execute(sqlQueries.get(SqlQuery.CREATE_PAGES_TABLE), create -> {
+            connection.close();
+            if (create.failed()) {
+                LOGGER.error("Database preparation error", create.cause());
+                readyHandler.handle(Future.failedFuture(create.cause()));
+            } else {
+                readyHandler.handle(Future.succeededFuture(this));
+            }
+            });
+        }
+        });
+    }
+
+    @Override
+    public WikiDatabaseService fetchAllPages(Handler<AsyncResult<JsonArray>> resultHandler) {
+        dbClient.query(sqlQueries.get(SqlQuery.ALL_PAGES), res -> {
+        if (res.succeeded()) {
+            JsonArray pages = new JsonArray(res.result()
+            .getResults()
+            .stream()
+            .map(json -> json.getString(0))
+            .sorted()
+            .collect(Collectors.toList()));
+            resultHandler.handle(Future.succeededFuture(pages));
+        } else {
+            LOGGER.error("Database query error", res.cause());
+            resultHandler.handle(Future.failedFuture(res.cause()));
+        }
+        });
+        return this;
+    }
+
+    @Override
+    public WikiDatabaseService fetchPage(String name, Handler<AsyncResult<JsonObject>> resultHandler) {
+        dbClient.queryWithParams(sqlQueries.get(SqlQuery.GET_PAGE), new JsonArray().add(name), fetch -> {
+        if (fetch.succeeded()) {
+            JsonObject response = new JsonObject();
+            ResultSet resultSet = fetch.result();
+            if (resultSet.getNumRows() == 0) {
+            response.put("found", false);
+            } else {
+            response.put("found", true);
+            JsonArray row = resultSet.getResults().get(0);
+            response.put("id", row.getInteger(0));
+            response.put("rawContent", row.getString(1));
+            }
+            resultHandler.handle(Future.succeededFuture(response));
+        } else {
+            LOGGER.error("Database query error", fetch.cause());
+            resultHandler.handle(Future.failedFuture(fetch.cause()));
+        }
+        });
+        return this;
+    }
+
+    @Override
+    public WikiDatabaseService createPage(String title, String markdown, Handler<AsyncResult<Void>> resultHandler) {
+        JsonArray data = new JsonArray().add(title).add(markdown);
+        dbClient.updateWithParams(sqlQueries.get(SqlQuery.CREATE_PAGE), data, res -> {
+        if (res.succeeded()) {
+            resultHandler.handle(Future.succeededFuture());
+        } else {
+            LOGGER.error("Database query error", res.cause());
+            resultHandler.handle(Future.failedFuture(res.cause()));
+        }
+        });
+        return this;
+    }
+
+    @Override
+    public WikiDatabaseService savePage(int id, String markdown, Handler<AsyncResult<Void>> resultHandler) {
+        JsonArray data = new JsonArray().add(markdown).add(id);
+        dbClient.updateWithParams(sqlQueries.get(SqlQuery.SAVE_PAGE), data, res -> {
+        if (res.succeeded()) {
+            resultHandler.handle(Future.succeededFuture());
+        } else {
+            LOGGER.error("Database query error", res.cause());
+            resultHandler.handle(Future.failedFuture(res.cause()));
+        }
+        });
+        return this;
+    }
+
+    @Override
+    public WikiDatabaseService deletePage(int id, Handler<AsyncResult<Void>> resultHandler) {
+        JsonArray data = new JsonArray().add(id);
+        dbClient.updateWithParams(sqlQueries.get(SqlQuery.DELETE_PAGE), data, res -> {
+        if (res.succeeded()) {
+            resultHandler.handle(Future.succeededFuture());
+        } else {
+            LOGGER.error("Database query error", res.cause());
+            resultHandler.handle(Future.failedFuture(res.cause()));
+        }
+        });
+        return this;
+    }
+}
+```
+
+为了能够生成代理代码，还需要做一件事：在 service 包下增加一个 ```package-info.java``` 注解，用来定义一个 Vert.x 模块：
+
+```java
+@ModuleGen(groupPackage = "io.vertx.guides.wiki.database", name = "wiki-database")
+package io.vertx.guides.wiki.database;
+
+import io.vertx.codegen.annotations.ModuleGen;
+```
