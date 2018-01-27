@@ -30,4 +30,5 @@
     https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/README.md#在-main-verticle-中部署-verticles)
 
 * [03. 再重构：Vert.x 服务](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/03/README.md)
-    * [调整 Maven 配置](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/03/README.md#调整-Maven-配置)
+    * [调整 Maven 配置](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/03/README.md#调整-maven-配置)
+    * [数据库服务接口](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/03/README.md#数据库服务接口)

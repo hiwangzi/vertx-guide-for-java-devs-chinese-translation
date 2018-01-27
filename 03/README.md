@@ -92,3 +92,52 @@ step-3/src/main/java/
   </configuration>
 </plugin>
 ```
+
+### 数据库服务接口
+
+定义一个服务接口就像定义 Java 接口一样简单，除了必须要遵守一些规则，来生成代码以及保障 Vert.x 中的其他代码可以与之相互操作。
+
+接口最开始定义为如下形式：
+
+```java
+@ProxyGen
+public interface WikiDatabaseService {
+
+  @Fluent
+  WikiDatabaseService fetchAllPages(Handler<AsyncResult<JsonArray>> resultHandler);
+
+  @Fluent
+  WikiDatabaseService fetchPage(String name, Handler<AsyncResult<JsonObject>> resultHandler);
+
+  @Fluent
+  WikiDatabaseService createPage(String title, String markdown, Handler<AsyncResult<Void>> resultHandler);
+
+  @Fluent
+  WikiDatabaseService savePage(int id, String markdown, Handler<AsyncResult<Void>> resultHandler);
+
+  @Fluent
+  WikiDatabaseService deletePage(int id, Handler<AsyncResult<Void>> resultHandler);
+
+  // (...)
+```
+
+1. 通过 ```ProxyGen``` 注解的使用来触发此 service 的客户端代理代码的生成。
+2. ```Fluent``` 注解是可选的，它意味着接口的方法可以链式调用。当 service 可能会被其他 JVM 语言使用的时候，这对于代码生成器来说很有用。
+3. 参数类型默认只能是字符串、Java 基础类型、JSON 对象或数组、枚举类型、或者之前提到的类型的集合类型（```java.util```）（```List```、```Set```、```Map```）。若想使用其他任意的 Java 类作为 Vert.x 数据对象，需要为它们添加 ```@DataObject``` 注解。另外，还可以传递 service 引用类型变量。
+4. 因为 service 提供了异步结果，所以最后一个参数定义为 ```Handler<AsyncResult<T>>```，在代码生成时，```T``` 是上面描述的任意一种适当的类型。
+
+service 接口提供一个静态方法来为所有实际的实现提供实例对象，以及提供一个底层基于 event bus 的客户端代理，这样是比较好的实践。
+
+我们非常简单的通过实现类的构造方法来提供实现类的委托，将其定义为 ```create```：
+
+```java
+static WikiDatabaseService create(JDBCClient dbClient, HashMap<SqlQuery, String> sqlQueries, Handler<AsyncResult<WikiDatabaseService>> readyHandler) {
+  return new WikiDatabaseServiceImpl(dbClient, sqlQueries, readyHandler);
+}
+```
+
+The Vert.x code generator creates the proxy class and names it by suffixing with VertxEBProxy. Constructors of these proxy classes need a reference to the Vert.x context as well as a destination address on the event bus:
+
+Vert.x 代码生成器创建的代理类名字为类名加上 ```VertxEBProxy``` 后缀。代理类的构造方法需要 Vert.x 上下文引用以及 event bus 的目标地址。
+
+> 注意：在上一版中，我们将 ```SqlQuery``` 和 ```ErrorCodes``` 枚举类型定义为了内部类，而这一版中，它们分别定义在 ```SqlQuery.java``` 和 ```ErrorCodes.java``` 之中。（译者注：可以直接去最前面提到的地址中获取代码）
