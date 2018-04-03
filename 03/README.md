@@ -4,9 +4,9 @@
 >
 > 相关的源代码可以在本手册（注：英文原版）的仓库 [step-3](https://github.com/vert-x3/vertx-guide-for-java-devs/tree/master/step-3) 目录下找到。
 
-相较于最初的实现来说，之前的重构已经是一个巨大的进步：其基于 event bus，独立可配置的 verticle 通过异步消息来连接；同时，我们部署的几个 verticle 实例可以更好的处理负载与施展 CPU 核心效能。
+相较于最初的实现来说，之前的重构已经是一个巨大的进步：其基于 event bus，独立可配置的 verticle 通过异步消息来连接；同时，我们部署的几个 verticle 实例可以更好的应对负载以及更好的利用 CPU 核心。
 
-在下面这个部分之中，我们将看到如何设计并使用 Vert.x 服务（services）。服务的优势在于，它为 verticle 需要做的具体操作定义了接口。同时，不再像之前那样自己去处理消息，而是使用 event bus 消息管道。
+在下面这个部分之中，我们将看到如何设计并使用 Vert.x 服务（services）。服务的优势在于，它为 verticle 需要做的具体操作定义了接口。同时，不再像之前那样自己去处理消息，而是利用代码生成来使用 event bus 消息。
 
 Java 代码将被重构为以下几个包： 
 ```
@@ -42,7 +42,7 @@ step-3/src/main/java/
 </dependency>
 ```
 
-第二，我们需要 Vert.x 代码生成模块，作为编译时唯一的依赖（hence the ```provided``` scope）：
+第二，我们需要 Vert.x 代码生成模块，其只在编译时依赖（因此 scope 被设置为 ```provided```）：
 
 ```xml
 <dependency>
@@ -77,7 +77,7 @@ step-3/src/main/java/
 
 注意：生成的代码放置于 ```src/main/generated```，像 IntelliJ IDEA 这类 IDE 会自动将其加入 classpath。
 
-为了移除生成的多余文件，可以更新 ```maven-clean-plugin```：
+为了移除生成的多余文件，更新 ```maven-clean-plugin``` 如下：
 
 ```xml
 <plugin>
@@ -95,7 +95,7 @@ step-3/src/main/java/
 
 ### 数据库服务接口
 
-定义一个服务接口就像定义 Java 接口一样简单，除了必须要遵守一些规则，来生成代码以及保障 Vert.x 中的其他代码可以与之相互操作。
+定义一个服务接口就像定义 Java 接口一样简单，除了必须要遵守一些特定规则，以生成代码及保证 Vert.x 中的其他代码可以与之相互操作。
 
 接口最开始定义为如下形式：
 
@@ -136,15 +136,13 @@ static WikiDatabaseService create(JDBCClient dbClient, HashMap<SqlQuery, String>
 }
 ```
 
-The Vert.x code generator creates the proxy class and names it by suffixing with VertxEBProxy. Constructors of these proxy classes need a reference to the Vert.x context as well as a destination address on the event bus:
-
-Vert.x 代码生成器创建的代理类名字为类名加上 ```VertxEBProxy``` 后缀。代理类的构造方法需要 Vert.x 上下文引用以及 event bus 的目标地址。
+Vert.x 代码生成器创建代理类，并将其命名为为类名加上 ```VertxEBProxy``` 后缀。代理类的构造方法需要 Vert.x 上下文引用以及 event bus 的目标地址。
 
 > 注意：在上一版中，我们将 ```SqlQuery``` 和 ```ErrorCodes``` 枚举类型定义为了内部类，而这一版中，它们分别定义在 ```SqlQuery.java``` 和 ```ErrorCodes.java``` 之中。（译者注：可以直接去最前面提到的地址中获取代码）
 
 ### 数据库服务实现
 
-数据库服务的实现就是上一版 ```WikiDatabaseVerticle``` 的直白版。最主要的区别就是构造函数提供异步结果 handler（来报告初始化结果），以及方法也同样提供了异步结果（来告知操作是否成功）。
+数据库服务的实现就是上一版 ```WikiDatabaseVerticle``` 的简易版本。最主要的区别就是构造函数提供异步结果 handler（来报告初始化结果），以及方法也同样提供了异步结果（来告知操作是否成功）。
 
 类代码如下所示：
 
@@ -265,7 +263,7 @@ class WikiDatabaseServiceImpl implements WikiDatabaseService {
 }
 ```
 
-为了能够生成代理代码，还需要做一件事：在 service 包下增加一个 ```package-info.java``` 注解，用来定义一个 Vert.x 模块：
+为了能够生成代理代码，还需要做一件事：在 service 包下增加一个 ```package-info.java``` 注释以用来定义一个 Vert.x 模块：
 
 ```java
 @ModuleGen(groupPackage = "io.vertx.guides.wiki.database", name = "wiki-database")
