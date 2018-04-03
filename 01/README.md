@@ -271,7 +271,7 @@ private Future<Void> prepareDatabase() {
 注：
 
 1. ```createShared``` 创建一个共享的连接，其在 ```vertx``` 实例已知的 verticle 之间共享，通常来说这是一件好事。
-2. 通过传递一个 JSON 对象来创建 JDBC client 连接。其中 ```url`` 指的是 JDBC url。
+2. 通过传递一个 JSON 对象来创建 JDBC client 连接。其中 ```url``` 指的是 JDBC url。
 3. 使用 ```url```、```driver_class``` 等等来配置 JDBC driver 并且指出 JDBC driver 类。
 4. ```max_pool_size``` 指的是并发连接数。这里设为 30 是武断决定，任意选择了一个数字。
 5) 获取一个连接是异步操作，其提供给我们一个 ```AsyncResult<SQLConnection>```。它在使用之前必须检测是否可以建立连接（```AsyncResult``` 实际上是 ```Future``` 的超类接口）。
@@ -624,7 +624,7 @@ private void pageRenderingHandler(RoutingContext context) {
 
 #### 创建页面 handler
 
-首页提供了一个区域来创建新页面，内容部分的页面的处理由此 handler 负责。此 handler 实际上并不是在数据库中新增一条记录，而是简单的重定向到 Wiki 页面（以名字为 URL 参数）。因为这个页面不存在，所以 ```pageRenderingHandler``` 方法将在新页面使用默认文本，只有在编辑结束保存时，才最终创建页面。
+首页提供了一个区域来创建新页面，内容部分的页面的处理由此 handler 负责。此 handler 实际上并没有在数据库中新增一条记录，而是简单的重定向到 Wiki 页面（以名字为 URL 参数）。因为这个页面不存在，所以 ```pageRenderingHandler``` 方法将在新页面使用默认文本，只有在编辑结束保存时，才最终创建页面。
 
 ```pageRenderingHandler``` 方法通过 HTTP 303 状态码重定向来实现：
 
