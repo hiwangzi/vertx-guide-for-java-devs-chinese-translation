@@ -39,3 +39,8 @@
 * [04. 测试 Vert.x 代码](04/README.md)
   * [开始](04/README.md#开始)
   * [测试数据库操作](04/README.md#测试数据库操作)
+
+* [06. 实现 web API](06/README.md)
+  * [Web 子路由](06/README.md#Web-子路由)
+  * [Handlers](06/README.md#Handlers)
+  * [对 API 进行单元测试](06/README.md#对-API-进行单元测试)
