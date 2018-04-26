@@ -33,6 +33,8 @@
   * [调整 Maven 配置](03/README.md#调整-maven-配置)
   * [数据库服务接口](03/README.md#数据库服务接口)
   * [数据库服务实现](03/README.md#数据库服务实现)
+  * [在数据库 verticle 中暴露数据库服务](03/README.md#在数据库-verticle-中暴露数据库服务)
+  * [数据库服务实现](03/README.md#使用一个数据库服务代理)
 
 * [04. 测试 Vert.x 代码](04/README.md)
   * [开始](04/README.md#开始)
