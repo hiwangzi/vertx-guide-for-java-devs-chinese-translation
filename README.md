@@ -41,6 +41,9 @@
   * [测试数据库操作](04/README.md#测试数据库操作)
 
 * [06. 实现 web API](06/README.md)
-  * [Web 子路由](06/README.md#Web-子路由)
-  * [Handlers](06/README.md#Handlers)
-  * [对 API 进行单元测试](06/README.md#对-API-进行单元测试)
+  * [Web 子路由](06/README.md#web-子路由)
+  * [Handlers](06/README.md#handlers)
+  * [对 API 进行单元测试](06/README.md#对-api-进行单元测试)
+
+* [07. 加密与访问控制](07/README.md)
+  * [Web 子路由](07/README.md#vertx-中使用-https)
