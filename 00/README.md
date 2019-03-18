@@ -64,7 +64,7 @@ Vert.x 中有两个关键的概念：
 
 Vert.x 中的可被部署的单位（或单元）被称作 Verticle。Verticle 基于「事件循环」来处理传入的事件，事件可以是接受网络缓冲、定时事件或者来自其他 verticle 的消息。在异步编程模型中，「事件循环」非常典型：
 
-![event loop](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/00/images/event-loop.png)
+![event loop](images/event-loop.png)
 
 每一个事件都应在合理的时间内处理完成，不应让其阻塞「事件循环」。这意味着可能阻塞线程的操作不应当在「事件循环」中被执行，就像在图形界面处理事件时（不应当）卡住 Java 或者 Swing 界面去做一个很慢的网络请求一样。在本手册的后面将会看到，Vert.x 提供了一种在「事件循环」外处理阻塞操作的机制。当「事件循环」在处理一个事件耗时过长时，Vert.x 总会在日志中发出警告。为了匹配应用的需求（例如：运行环境是相对较慢的物联网 ARM 主板），这个特性同样也是可以被配置。
 
@@ -72,7 +72,7 @@ Vert.x 中的可被部署的单位（或单元）被称作 Verticle。Verticle �
 
 verticle 可以进行一些配置(configuration)（例如：证书、网络地址等等），并且可以被部署多次：
 
-![verticle threading config](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/00/images/verticle-threading-config.png)
+![verticle threading config](images/verticle-threading-config.png)
 
 传入的网络数据将会被接收线程收到，并作为事件交由相应的 verticle 处理。当一个 verticle 开启了网络服务器并被部署多次时，事件将会采用轮询形式被分发给 verticle 实例，这有利于处理大量并发网络请求时最大化 CPU 利用率。Verticle 的生命周期只有简单的开启与结束，并且 verticle 可以 deploy 其他 verticle。
 
@@ -80,7 +80,7 @@ verticle 可以进行一些配置(configuration)（例如：证书、网络地�
 
 在 Vert.x 中，verticle 将代码组织成可部署的单元。Vert.x event bus 是不同 verticle 之间通过异步消息传递进行通信的主要工具。例如假设存在一个 verticle 负责 HTTP 请求，另一个 verticle 负责管理数据库访问。Event bus 将允许 HTTP verticle 发送请求给数据库 verticle 来执行 SQL 查询，并返回结果给 HTTP verticle。
 
-![event bus](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/00/images/event-bus.png)
+![event bus](images/event-bus.png)
 
 因为 JSON 可以被各种语言所编写的 verticle 用来通信，同时也是非常流行的通用型半结构化数据编组格式，所以其被推荐用来作为信息的交换格式，但 event bus 本身并不限制传递的数据类型。
 

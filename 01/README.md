@@ -375,7 +375,7 @@ private Future<Void> startHttpServer() {
 
 主页提供了所有 wiki 页面的入口及一个创建新 wiki 的区域。
 
-![index](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/index.png)
+![index](images/index.png)
 
 通过一个简单的 ```select *``` SQL 查询，并将数据交由 FreeMarker 引擎来渲染得到 HTML 响应。
 
@@ -509,11 +509,11 @@ FreeMarker 模板应当被放置在 ```src/main/resources/templates``` 目录。
 
 此 handler 处理 HTTP GET 请求，生成一个渲染过的 Wiki 页面，就像下图一样：
 
-![page](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/page.png)
+![page](images/page.png)
 
 此页面同样提供了一个编辑按钮来以 Markdown 形式编辑内容。当按钮被点击时，不需要使用不同的 handler 与模板，只需简单的使用 JavaScript 和 CSS 来切换编辑器的开与关即可。
 
-![edit](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/01/images/edit.png)
+![edit](images/edit.png)
 
 ```pageRenderingHandler``` 方法代码如下：
 

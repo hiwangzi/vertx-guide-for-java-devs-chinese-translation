@@ -13,7 +13,7 @@
 
 迭代的第二个版本设法重构代码，以实现 Verticle 的独立与可重用：
 
-![verticles-refactoring](https://github.com/zill057/vertx-guide-for-java-devs-chinese-translation/blob/master/02/images/verticles-refactoring.png)
+![verticles-refactoring](images/verticles-refactoring.png)
 
 我们将部署 2 个 verticle 来分别处理 HTTP 请求与数据持久化。这 2 个 verticle 之间并不会直接互相引用，它们仅仅通过 event bus 中声明的名字及消息格式来通信。这是一种简单但有效的解耦。
 
